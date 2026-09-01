@@ -25,6 +25,9 @@ jobs:
           # The build script derives the version from the commit count and nearest tag.
           fetch-depth: 0
 
+      # Left as a single cache step, unlike the system image below: this one is populated by the
+      # pack job, which does not run tests and so reliably succeeds and saves. The packages are
+      # also cheap enough to refetch that it is not worth the extra steps.
       - name: Cache NuGet packages
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -33,10 +36,13 @@ jobs:
           restore-keys: nuget-${{ runner.os }}-
 
       # The system image is over a gigabyte and none of the runner images ship one, so it is
-      # worth caching. The key is the image spec, so it only re-downloads when that changes.
-      - name: Cache the Android system image
+      # worth caching. Restore and save are separate steps rather than one cache step: the
+      # combined form only saves when the job succeeds, so a failing test run threw the download
+      # away and the next run fetched it again. Saving happens right after the install below,
+      # before anything that can fail.
+      - name: Restore the Android system image
         id: system-image-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.ANDROID_SDK_DIR }}/system-images
           key: android-system-image-${{ env.ANDROID_SYSTEM_IMAGE }}
@@ -60,6 +66,14 @@ jobs:
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "$ANDROID_SYSTEM_IMAGE"
+
+      # Saved before the tests run, so the download survives a test failure.
+      - name: Save the Android system image
+        if: steps.system-image-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.ANDROID_SDK_DIR }}/system-images
+          key: android-system-image-${{ env.ANDROID_SYSTEM_IMAGE }}
 
       # --keep-simulator and --keep-emulator skip the erase, cold boot and shutdown that a
       # development machine wants. The runner is discarded when the job ends, so none of that
