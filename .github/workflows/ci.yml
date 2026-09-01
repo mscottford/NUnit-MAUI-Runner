@@ -1,0 +1,92 @@
+name: CI
+
+# Pull requests and branch pushes are built and tested but never published. Releasing happens
+# only when something lands on the default branch; see release.yml.
+on:
+  pull_request:
+  push:
+    branches-ignore: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    # macos-26 is pinned rather than macos-latest for two reasons: it is the image that carries
+    # an iOS 26.x SDK, which net10.0-ios26.0 needs, and it has the Android emulator
+    # preinstalled, so both platforms can be tested from one job.
+    runs-on: macos-26
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The build script derives the version from the commit count and nearest tag.
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install MAUI workloads
+        run: dotnet workload install maui-android maui-ios
+
+      - name: Install tools
+        run: dotnet tool restore
+
+      # The runner images ship the Android SDK but no system image, so the emulator has nothing
+      # to boot until one is installed. The build script picks the newest installed image
+      # matching the host architecture.
+      - name: Install an Android system image
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
+            "system-images;android-36;google_apis;arm64-v8a"
+
+      - name: Test
+        run: dotnet cake --target Test --configuration release
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            Artifacts/*.xml
+            Artifacts/xharness-*/**
+          if-no-files-found: warn
+
+  pack:
+    # Proves the package still builds, and leaves it downloadable for checking a change before
+    # it is released.
+    runs-on: macos-26
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install MAUI workloads
+        run: dotnet workload install maui-android maui-ios
+
+      - name: Install tools
+        run: dotnet tool restore
+
+      - name: Build and pack
+        run: |
+          dotnet cake --configuration release
+          dotnet cake --target Pack --configuration release
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: nupkg
+          path: Artifacts/*.nupkg
+          if-no-files-found: error

@@ -24,6 +24,11 @@ bool keepSimulator = HasArgument("keep-simulator");
 // unless --keep-emulator is passed. A kept emulator is reused by the next run.
 bool keepEmulator = HasArgument("keep-emulator");
 
+// A device supplied from outside, for CI where the emulator or simulator is already running
+// and provisioned by the workflow. When set, this script neither creates nor shuts it down.
+string androidDeviceArgument = Argument("android-device", "");
+string iosDeviceArgument = Argument("ios-device", "");
+
 // Must match the TargetFrameworks in src/NUnit.Maui.Runner and src/NUnitTests.
 const string AndroidTfm = "net10.0-android";
 const string IosTfm = "net10.0-ios26.0";
@@ -287,9 +292,16 @@ public void RunAndroidTests() {
     EnsureDirectoryExists(logDirectory);
     var reportPath = MakeAbsolute(File("./Artifacts/Runner_Android_Test_Results.xml"));
 
-    var sdkRoot = AndroidSdkRoot();
-    string deviceId = StartAndroidEmulator(
-        sdkRoot, AndroidAvdName, AndroidEmulatorPort, AndroidEmulatorBootTimeoutSeconds);
+    bool deviceSupplied = !string.IsNullOrWhiteSpace(androidDeviceArgument);
+    string deviceId = deviceSupplied
+        ? androidDeviceArgument
+        : StartAndroidEmulator(
+            AndroidSdkRoot(), AndroidAvdName, AndroidEmulatorPort,
+            AndroidEmulatorBootTimeoutSeconds);
+
+    if (deviceSupplied) {
+        Information($"Using the supplied device {deviceId}.");
+    }
 
     try {
         XHarnessAndroidInstall(apk, TestAppPackageName, deviceId, logDirectory);
@@ -314,11 +326,12 @@ public void RunAndroidTests() {
         }
     }
     finally {
-        if (!keepEmulator) {
-            StopAndroidEmulator(deviceId, AndroidAvdName);
+        // Only tear down an emulator this script started.
+        if (deviceSupplied || keepEmulator) {
+            Information($"Leaving {deviceId} running.");
         }
         else {
-            Information($"Leaving {deviceId} running (--keep-emulator).");
+            StopAndroidEmulator(deviceId, AndroidAvdName);
         }
     }
 
@@ -388,12 +401,15 @@ public void RunIosUITests() {
     });
 
     var appBundle = Directory($"./src/NUnitTests/bin/{configuration}/{IosTfm}/{runtimeIdentifier}/NUnitTests.app");
-    var simulator = BootIosSimulator(SimulatorDeviceName);
+    string requestedSimulator = string.IsNullOrWhiteSpace(iosDeviceArgument)
+        ? SimulatorDeviceName
+        : iosDeviceArgument;
+    var simulator = BootIosSimulator(requestedSimulator);
     InstallOnIosSimulator(simulator, appBundle);
 
     RunUITestProject("./src/UITests.iOS/UITests.iOS.csproj", new Dictionary<string, string> {
         { "UITEST_IOS_UDID", simulator },
-        { "UITEST_IOS_DEVICE_NAME", SimulatorDeviceName }
+        { "UITEST_IOS_DEVICE_NAME", requestedSimulator }
     });
 }
 
@@ -410,9 +426,12 @@ public void RunAndroidUITests() {
     var apk = File($"./src/NUnitTests/bin/{configuration}/{AndroidTfm}/{TestAppPackageName}-Signed.apk");
     VerifyApkHasEmbeddedAssemblies(apk);
 
-    var sdkRoot = AndroidSdkRoot();
-    string deviceId = StartAndroidEmulator(
-        sdkRoot, AndroidAvdName, AndroidEmulatorPort, AndroidEmulatorBootTimeoutSeconds);
+    bool deviceSupplied = !string.IsNullOrWhiteSpace(androidDeviceArgument);
+    string deviceId = deviceSupplied
+        ? androidDeviceArgument
+        : StartAndroidEmulator(
+            AndroidSdkRoot(), AndroidAvdName, AndroidEmulatorPort,
+            AndroidEmulatorBootTimeoutSeconds);
 
     try {
         XHarnessAndroidInstall(apk, TestAppPackageName, deviceId, "./Artifacts/xharness-android");
@@ -421,7 +440,7 @@ public void RunAndroidUITests() {
     }
     finally {
         XHarnessAndroidUninstall(TestAppPackageName, deviceId);
-        if (!keepEmulator) {
+        if (!deviceSupplied && !keepEmulator) {
             StopAndroidEmulator(deviceId, AndroidAvdName);
         }
     }

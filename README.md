@@ -86,6 +86,14 @@ rather than any you already have open, and iOS uses a simulator; both are shut d
 Pass `--keep-emulator` or `--keep-simulator` to leave them running, which makes repeated runs
 considerably faster.
 
+To run against a device that is already up -- which is what CI does -- name it instead, and it
+will be left alone afterwards:
+
+```bash
+dotnet cake --target Test --platform=android --android-device=emulator-5554
+dotnet cake --target Test --platform=ios --ios-device="iPhone 17 Pro"
+```
+
 ### Screenshot baselines
 
 The UI tests compare against committed screenshots, which are specific to the device that
@@ -99,31 +107,41 @@ dotnet cake --target UITest --update-baselines
 The updated images are written next to the test binaries; copy them into
 `src/UITests.Shared/Baselines/<platform>/` and commit them once you have checked them.
 
-## Versioning and publishing
+## Versioning and releasing
 
-`version.txt` holds the release line, and is the only file to edit when starting a new one.
-Everything else is derived at build time:
+Versions come from the commit messages. Commits follow
+[Conventional Commits](https://www.conventionalcommits.org), and
+[Versionize](https://github.com/versionize/versionize) reads the ones since the last tag to
+decide whether the next release is a patch, a minor or a major, writes `CHANGELOG.md` and tags
+it. The released version is recorded in `nuget/NUnit.Maui.Runner.Package.csproj`; nothing needs
+editing by hand.
+
+`build.cake` then resolves the version to build with:
 
 | Situation | Version |
 | --- | --- |
 | `--release-version` passed | that value, normalised |
 | `HEAD` is on a tag | that tag, normalised |
-| otherwise | `<line>.<commits>-preview` |
+| otherwise | next patch of the released version, `-preview.<commits>` |
 
-Normalising pads the version out to three components and tolerates a leading `v`, so the
-version the build resolves is the version in the package file name. `dotnet cake --target Prepare`
-prints the version it would use without building anything.
+`dotnet cake --target Prepare` prints the version it would use without building anything.
 
-Cutting a release is therefore a tag:
+### How a change gets released
 
-```bash
-git tag v2.0.0 && git push origin v2.0.0
-```
+Work happens on branches and lands through pull requests; the default branch is only updated
+when something should be released.
 
-The `Publish` workflow builds, packs and pushes to NuGet. A push to the default branch
-publishes a preview; pushing a `v*` tag publishes the release that tag names. It needs a
-`NUGET_API_KEY` repository secret, and it runs on macOS because the package carries iOS
-assemblies.
+1. Open a pull request. The `CI` workflow builds it, runs the tests on both platforms, and packs
+   the package without publishing it.
+2. Merge it. The `Release` workflow versions, tags, publishes to NuGet and creates a GitHub
+   release.
+
+A merge that contains nothing significant -- only `docs`, `chore` or `refactor` commits --
+produces no release: Versionize exits non-zero and the publishing steps are skipped.
+
+Releasing needs a `NUGET_API_KEY` repository secret. Both workflows run on macOS, because the
+package carries iOS assemblies and that image is also the one with the Android emulator
+preinstalled.
 
 To pack locally without publishing:
 

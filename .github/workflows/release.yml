@@ -1,0 +1,101 @@
+name: Release
+
+# Anything landing on the default branch is a release. Versionize reads the conventional commit
+# messages since the last tag, decides whether that is a patch, minor or major bump, writes the
+# changelog and tags it; the tag is then what the build takes its version from.
+#
+# When nothing since the last release is significant -- only docs, chores or refactors --
+# versionize exits non-zero and the remaining steps are skipped, so a merge does not have to
+# produce a release.
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # See ci.yml: this image is the one with an iOS 26.x SDK, which net10.0-ios26.0 needs.
+    runs-on: macos-26
+    if: github.repository == 'mscottford/NUnit-MAUI-Runner'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Versionize needs the full history and tags to work out the bump.
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install MAUI workloads
+        run: dotnet workload install maui-android maui-ios
+
+      - name: Install tools
+        run: dotnet tool restore
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # [skip ci] on the release commit is belt and braces: a push made with GITHUB_TOKEN does
+      # not trigger workflows anyway.
+      - name: Version
+        id: versionize
+        continue-on-error: true
+        run: |
+          dotnet versionize \
+            --tag-template 'v{version}' \
+            --exit-insignificant-commits \
+            --commit-suffix '[skip ci]'
+
+      - name: Stop if there is nothing to release
+        if: steps.versionize.outcome != 'success'
+        run: |
+          echo "No feat, fix or breaking commits since the last release; nothing to publish."
+
+      - name: Read the new version
+        if: steps.versionize.outcome == 'success'
+        id: version
+        run: echo "tag=$(git describe --tags --exact-match HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Push the release commit and tag
+        if: steps.versionize.outcome == 'success'
+        run: git push --follow-tags origin HEAD:${{ github.ref_name }}
+
+      - name: Build and pack
+        if: steps.versionize.outcome == 'success'
+        run: |
+          dotnet cake --configuration release
+          dotnet cake --target Pack --configuration release
+
+      - name: Publish to NuGet
+        if: steps.versionize.outcome == 'success'
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          if [ -z "$NUGET_API_KEY" ]; then
+            echo "NUGET_API_KEY is not configured." >&2
+            exit 1
+          fi
+          dotnet cake --target Nuget --configuration release --nuget-key "$NUGET_API_KEY"
+
+      - name: Create the GitHub release
+        if: steps.versionize.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --generate-notes \
+            Artifacts/*.nupkg

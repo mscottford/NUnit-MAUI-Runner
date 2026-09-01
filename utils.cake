@@ -371,7 +371,7 @@ public string BootIosSimulator(string deviceName) {
 
     var device = new System.Text.RegularExpressions.Regex(
         @"^\s+" + System.Text.RegularExpressions.Regex.Escape(deviceName) +
-        @"\s+\((?<udid>[0-9A-Fa-f-]{36})\)\s+\((?<state>\w+)\)");
+        @".*?\((?<udid>[0-9A-Fa-f-]{36})\)\s+\((?<state>\w+)\)");
 
     foreach (var line in output) {
         var match = device.Match(line);
@@ -392,7 +392,14 @@ public string BootIosSimulator(string deviceName) {
         return udid;
     }
 
-    throw new Exception($"No available simulator named '{deviceName}' was found.");
+    // CI runners do not carry the same simulators as a developer machine, so fall back to any
+    // available iPhone rather than failing because one particular model is missing.
+    if (!deviceName.Equals("iPhone", StringComparison.OrdinalIgnoreCase)) {
+        Warning($"No simulator named '{deviceName}'; falling back to any available iPhone.");
+        return BootIosSimulator("iPhone");
+    }
+
+    throw new Exception($"No available iOS simulator was found.");
 }
 
 public void InstallOnIosSimulator(string udid, DirectoryPath appBundle) {
