@@ -34,6 +34,11 @@ const string SimulatorTarget = "ios-simulator-64";
 // Appium has to be pointed at a specific one.
 const string SimulatorDeviceName = "iPhone 17 Pro";
 
+// The id in nuget/MScottFord.Forks.NUnit.Maui.Runner.nuspec, which is also the nupkg's file
+// name. This is a fork, so the package id is prefixed while the assembly keeps its original
+// name and namespaces.
+const string PackageId = "MScottFord.Forks.NUnit.Maui.Runner";
+
 // ApplicationId in src/NUnitTests/NUnitTests.csproj.
 const string TestAppPackageName = "com.companyname.nunittests";
 
@@ -86,7 +91,7 @@ Task("Build")
         DotNetBuild("./src/framework/nunit.framework.csproj", new DotNetBuildSettings { Configuration = configuration});
         DotNetBuild("./src/NUnit.Maui.Runner/NUnit.Maui.Runner.csproj", new DotNetBuildSettings { Configuration = configuration});
 
-        // Lay out the per-platform files nuget/NUnit.Maui.Runner.nuspec packages. The runner
+        // Lay out the per-platform files the nuspec packages. The runner
         // multi-targets, so each target framework has its own output directory.
         EnsureDirectoryExists("./Build");
         EnsureDirectoryExists("./Build/Android");
@@ -360,7 +365,7 @@ Task("Pack")
 Task("Nuget")
     .IsDependentOn("Pack")
     .Does(() => {
-        NuGetPush($"./Artifacts/NUnit.Maui.Runner.{version}.0.nupkg", new NuGetPushSettings {
+        NuGetPush($"./Artifacts/{PackageId}.{version}.0.nupkg", new NuGetPushSettings {
             Source = "https://api.nuget.org/v3/index.json",
             ApiKey = key
         });

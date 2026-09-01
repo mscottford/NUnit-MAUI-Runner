@@ -1,13 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
   <metadata>
-    <id>NUnit.Maui.Runner</id>
+    <id>MScottFord.Forks.NUnit.Maui.Runner</id>
     <version>1.0</version>
+    <title>NUnit Runner for testing .NET MAUI (fork)</title>
+    <authors>M. Scott Ford</authors>
     <license type="expression">MIT</license>
-    <title>NUnit Runner for testing .NET MAUI</title>
-    <authors>Nikita Romanov</authors>
-    <description>GitHub page with instruction: https://github.com/JaneySprings/NUnit-MAUI-Runner</description>
-    <tags>NUnit MAUI .NET</tags>
+    <projectUrl>https://github.com/mscottford/NUnit-MAUI-Runner</projectUrl>
+    <repository type="git" url="https://github.com/mscottford/NUnit-MAUI-Runner.git" />
+    <description>Runs NUnit tests inside a .NET MAUI app on a device, simulator or emulator, and reports the results in-app or over TCP.
+
+This is a fork of NUnit.Maui.Runner by Nikita Romanov (https://github.com/JaneySprings/NUnit-MAUI-Runner), by way of https://github.com/Abhirasmanu-Trimble/NUnit-MAUI-Runner, published so that a build targeting .NET 10 and MAUI 10 is available on NuGet. The assembly name and namespaces are unchanged from upstream, so existing code needs no edits.
+
+Fork maintained at https://github.com/mscottford/NUnit-MAUI-Runner.</description>
+    <tags>NUnit MAUI .NET fork</tags>
     <!--
       These must stay in step with the PackageReferences in
       src/NUnit.Maui.Runner/NUnit.Maui.Runner.csproj. Without them consumers of the package
