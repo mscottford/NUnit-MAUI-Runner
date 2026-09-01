@@ -1,7 +1,9 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:NUnit.Runner.ViewModel"
              x:Class="NUnit.Runner.View.ResultsView"
+             x:DataType="vm:ResultsViewModel"
              Title="Test Results"
              Padding="0"
              BackgroundColor="{DynamicResource defaultBackground}" >
@@ -14,7 +16,7 @@
                         SelectionMode="Single"
                         HorizontalOptions="FillAndExpand">
             <CollectionView.ItemTemplate>
-                <DataTemplate>
+                <DataTemplate x:DataType="vm:ResultViewModel">
                     <Grid Padding="2,1,0,1">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>

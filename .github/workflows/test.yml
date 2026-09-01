@@ -20,13 +20,13 @@ jobs:
       ANDROID_SDK_DIR: /Users/runner/Library/Android/sdk
 
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The build script derives the version from the commit count and nearest tag.
           fetch-depth: 0
 
       - name: Cache NuGet packages
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/*.props', '.config/dotnet-tools.json') }}
@@ -36,13 +36,13 @@ jobs:
       # worth caching. The key is the image spec, so it only re-downloads when that changes.
       - name: Cache the Android system image
         id: system-image-cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.ANDROID_SDK_DIR }}/system-images
           key: android-system-image-${{ env.ANDROID_SYSTEM_IMAGE }}
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '10.0.x'
 
@@ -61,12 +61,17 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "$ANDROID_SYSTEM_IMAGE"
 
+      # --keep-simulator and --keep-emulator skip the erase, cold boot and shutdown that a
+      # development machine wants. The runner is discarded when the job ends, so none of that
+      # buys anything here, and the erase alone was enough to push the iOS run over its timeout.
       - name: Test
-        run: dotnet cake --target Test --configuration release
+        run: |
+          dotnet cake --target Test --configuration release \
+            --keep-simulator --keep-emulator
 
       - name: Upload test reports
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: test-reports
           path: |

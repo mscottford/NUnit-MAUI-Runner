@@ -150,7 +150,13 @@ const int AndroidEmulatorBootTimeoutSeconds = 300;
 const int ReportPort = 13000;
 
 // Covers installing the app and running the suite, so it needs headroom over the run itself.
-const int ReportTimeoutSeconds = 180;
+// A hosted runner is a good deal slower at this than a development machine.
+const int ReportTimeoutSeconds = 300;
+
+// How long XHarness waits for the app to install, run and exit. Must exceed
+// ReportTimeoutSeconds, or XHarness gives up while the listener is still waiting and the
+// failure points at the wrong thing.
+const string DeviceRunTimeout = "00:10:00";
 
 // Set UITEST_UPDATE_BASELINES=1 (or pass --update-baselines) to rewrite the reference
 // screenshots instead of comparing against them.
@@ -257,7 +263,7 @@ public void RunIosTests() {
     // Blocks until the app exits, which the runner does itself once it has sent its report
     // (TerminateAfterExecution in RunnerConfig).
     XHarnessAppleRun(
-        appBundle, SimulatorTarget, logDirectory, "00:05:00",
+        appBundle, SimulatorTarget, logDirectory, DeviceRunTimeout,
         resetSimulator: !keepSimulator);
 
     if (!report.Result) {
