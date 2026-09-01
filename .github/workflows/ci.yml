@@ -1,11 +1,15 @@
 name: CI
 
-# Pull requests and branch pushes are built and tested but never published. Releasing happens
-# only when something lands on the default branch; see release.yml.
+# Pull requests are built and tested but never published; releasing happens only when something
+# lands on the default branch, which release.yml covers by calling the same test workflow.
+#
+# There is deliberately no push trigger. A push to a branch with an open pull request fires both
+# events, so every commit was being built twice over -- once as push, once as pull_request, on
+# the same commit. The pull_request run is the one worth keeping: it tests the merge result
+# rather than the branch tip. The cost is that a branch with no pull request yet gets no CI,
+# which is the point of working through pull requests.
 on:
   pull_request:
-  push:
-    branches-ignore: [main, master]
   workflow_dispatch:
 
 concurrency:
