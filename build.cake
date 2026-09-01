@@ -4,7 +4,9 @@
 
 string target = Argument("target", "Build");
 string configuration = Argument("configuration", "debug");
-string version = Argument("release-version", "1.0");
+// Passing --release-version wins; otherwise the version is worked out from version.txt and
+// git. See ResolveVersion below.
+string releaseVersionArgument = Argument("release-version", "");
 string key = Argument("nuget-key", "");
 
 // Which platforms the Test target runs on: ios, android, or both. Validated here so a typo
@@ -33,6 +35,77 @@ const string SimulatorTarget = "ios-simulator-64";
 // The simulator the UI tests attach to. XHarness picks its own device for the Test target, but
 // Appium has to be pointed at a specific one.
 const string SimulatorDeviceName = "iPhone 17 Pro";
+
+// --- Version ------------------------------------------------------------------------------
+//
+// version.txt holds the release line (major.minor) and is the only file to edit when starting
+// a new one. Everything else is derived:
+//
+//   --release-version given   the value passed, normalised. The pipeline passes the git tag.
+//   HEAD is on a tag          that tag, normalised. Makes a local pack of a tagged commit
+//                             produce exactly what the pipeline would publish.
+//   otherwise                 <line>.<commits>-preview, which is what a push to master
+//                             publishes. Unique per commit, and ordered below the release.
+
+string ResolveVersion() {
+    if (!string.IsNullOrWhiteSpace(releaseVersionArgument)) {
+        return NormaliseVersion(releaseVersionArgument);
+    }
+
+    string tag = GitOutput("describe --tags --exact-match HEAD");
+    if (tag != null) {
+        return NormaliseVersion(tag);
+    }
+
+    string releaseLine = System.IO.File.ReadAllText("./version.txt").Trim();
+    string commits = GitOutput("rev-list --count HEAD") ?? "0";
+    return NormaliseVersion($"{releaseLine}.{commits}-preview");
+}
+
+// Pads the numeric part out to the three components NuGet normalises to anyway, so the version
+// we resolve is the version in the package file name. Tolerates a leading v on tags.
+string NormaliseVersion(string raw) {
+    string value = raw.Trim().TrimStart('v', 'V');
+
+    int suffixStart = value.IndexOfAny(new[] { '-', '+' });
+    string core = suffixStart < 0 ? value : value.Substring(0, suffixStart);
+    string suffix = suffixStart < 0 ? "" : value.Substring(suffixStart);
+
+    var parts = new List<string>(core.Split('.'));
+    while (parts.Count < 3) {
+        parts.Add("0");
+    }
+    if (parts.Count > 3) {
+        Warning($"Version '{raw}' has more than three components; using the first three.");
+        parts = parts.GetRange(0, 3);
+    }
+
+    return string.Join(".", parts) + suffix;
+}
+
+// Returns null rather than throwing when the command fails, so a shallow clone or a repository
+// with no tags falls through to the next rule instead of breaking the build.
+string GitOutput(string arguments) {
+    IEnumerable<string> output;
+    var exitCode = StartProcess(
+        "git",
+        new ProcessSettings {
+            Arguments = arguments,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        },
+        out output);
+
+    if (exitCode != 0 || output == null) {
+        return null;
+    }
+
+    string first = output.Select(line => line.Trim()).FirstOrDefault(line => line.Length > 0);
+    return string.IsNullOrEmpty(first) ? null : first;
+}
+
+string version = ResolveVersion();
+Information($"Version: {version}");
 
 // The id in nuget/MScottFord.Forks.NUnit.Maui.Runner.nuspec, which is also the nupkg's file
 // name. This is a fork, so the package id is prefixed while the assembly keeps its original
@@ -73,23 +146,22 @@ Task("Prepare")
         CleanDirectory("./Artifacts");
         CleanDirectories("./**/bin");
         CleanDirectories("./**/obj");
-
-        var options = System.Text.RegularExpressions.RegexOptions.None;
-        var pattern = "<vers" + "ion>.*</version>";
-        FilePath[] files = FindRegexInFiles($"./**/*.*", pattern, options);
-        foreach (var file in files) {
-            List<string> matches = FindRegexMatchesInFile(file, pattern, options);
-            foreach (var match in matches) {
-                ReplaceTextInFiles(file.ToString(), match, "<vers" + $"ion>{version}</version>");
-            }
-        }
     });
 
 Task("Build")
     .IsDependentOn("Prepare")
     .Does(() => {
-        DotNetBuild("./src/framework/nunit.framework.csproj", new DotNetBuildSettings { Configuration = configuration});
-        DotNetBuild("./src/NUnit.Maui.Runner/NUnit.Maui.Runner.csproj", new DotNetBuildSettings { Configuration = configuration});
+        // Stamp the assemblies with the version the package will carry.
+        var versionProperties = new DotNetMSBuildSettings().WithProperty("Version", version);
+
+        DotNetBuild("./src/framework/nunit.framework.csproj", new DotNetBuildSettings {
+            Configuration = configuration,
+            MSBuildSettings = versionProperties
+        });
+        DotNetBuild("./src/NUnit.Maui.Runner/NUnit.Maui.Runner.csproj", new DotNetBuildSettings {
+            Configuration = configuration,
+            MSBuildSettings = versionProperties
+        });
 
         // Lay out the per-platform files the nuspec packages. The runner
         // multi-targets, so each target framework has its own output directory.
@@ -358,16 +430,26 @@ Task("Pack")
             Configuration = configuration,
             OutputDirectory = "./Artifacts",
             NoBuild = true,
-            NoRestore = true
+            NoRestore = true,
+            MSBuildSettings = new DotNetMSBuildSettings()
+                .WithProperty("NuspecProperties", $"version={version}")
         });
     });
 
 Task("Nuget")
     .IsDependentOn("Pack")
     .Does(() => {
-        NuGetPush($"./Artifacts/{PackageId}.{version}.0.nupkg", new NuGetPushSettings {
+        if (string.IsNullOrWhiteSpace(key)) {
+            throw new Exception("No --nuget-key was supplied, so there is nothing to push with.");
+        }
+
+        // dotnet nuget push rather than NuGetPush: the latter shells out to nuget.exe, which
+        // needs mono on macOS and Linux. --skip-duplicate keeps a re-run of the same commit
+        // from failing on a version that is already published.
+        DotNetNuGetPush($"./Artifacts/{PackageId}.{version}.nupkg", new DotNetNuGetPushSettings {
             Source = "https://api.nuget.org/v3/index.json",
-            ApiKey = key
+            ApiKey = key,
+            SkipDuplicate = true
         });
     });
 

@@ -2,7 +2,8 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
   <metadata>
     <id>MScottFord.Forks.NUnit.Maui.Runner</id>
-    <version>1.0</version>
+    <!-- Substituted at pack time from version.txt; see the Version section of build.cake. -->
+    <version>$version$</version>
     <title>NUnit Runner for testing .NET MAUI (fork)</title>
     <authors>M. Scott Ford</authors>
     <license type="expression">MIT</license>

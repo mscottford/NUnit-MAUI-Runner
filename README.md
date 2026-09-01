@@ -99,6 +99,39 @@ dotnet cake --target UITest --update-baselines
 The updated images are written next to the test binaries; copy them into
 `src/UITests.Shared/Baselines/<platform>/` and commit them once you have checked them.
 
+## Versioning and publishing
+
+`version.txt` holds the release line, and is the only file to edit when starting a new one.
+Everything else is derived at build time:
+
+| Situation | Version |
+| --- | --- |
+| `--release-version` passed | that value, normalised |
+| `HEAD` is on a tag | that tag, normalised |
+| otherwise | `<line>.<commits>-preview` |
+
+Normalising pads the version out to three components and tolerates a leading `v`, so the
+version the build resolves is the version in the package file name. `dotnet cake --target Prepare`
+prints the version it would use without building anything.
+
+Cutting a release is therefore a tag:
+
+```bash
+git tag v2.0.0 && git push origin v2.0.0
+```
+
+The `Publish` workflow builds, packs and pushes to NuGet. A push to the default branch
+publishes a preview; pushing a `v*` tag publishes the release that tag names. It needs a
+`NUGET_API_KEY` repository secret, and it runs on macOS because the package carries iOS
+assemblies.
+
+To pack locally without publishing:
+
+```bash
+dotnet cake --configuration release
+dotnet cake --target Pack --configuration release
+```
+
 ## Contributing
 We love pull requests! All NUnit projects are built and maintained entirely by the community, contributions of any kind are welcome. Not sure where to start? Have a look at our [Contributor's guide](https://github.com/nunit/nunit/blob/master/CONTRIBUTING.md).
 
