@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Shared UI test code. The per-platform projects import this so the same tests run on every
+  platform; this project is not built or run on its own.
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <SharedGUID>3f1c9a2e-64d7-4d1a-9a1f-2f6b5c8a4e01</SharedGUID>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)BaseTest.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)AppiumServerHelper.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ScreenshotAssert.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Tests/SummaryPageTests.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Tests/ButtonTests.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Baselines travel with the test binaries so a run can compare against them. -->
+    <None Include="$(MSBuildThisFileDirectory)Baselines\**\*.png"
+          Link="Baselines\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
