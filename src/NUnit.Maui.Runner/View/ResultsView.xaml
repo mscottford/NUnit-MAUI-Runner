@@ -7,6 +7,7 @@
              BackgroundColor="{DynamicResource defaultBackground}" >
     <StackLayout Orientation="Vertical" Spacing="4" BackgroundColor="{DynamicResource defaultBackground}" >
         <CollectionView x:Name="collectionView"
+                        AutomationId="ResultsList"
                         ItemsSource="{Binding Results}"
                         VerticalOptions="FillAndExpand"
                         SelectionChanged="ViewTest"
@@ -25,7 +26,7 @@
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         <BoxView Color="{Binding Color}" Grid.RowSpan="2" WidthRequest="5" VerticalOptions="Fill"/>
-                        <Label Grid.Column="2" Text="{Binding Name}" FontSize="Medium" />
+                        <Label Grid.Column="2" AutomationId="ResultName" Text="{Binding Name}" FontSize="Medium" />
                         <Label Grid.Column="2" Grid.Row="1" Text="{Binding ClassName}" LineBreakMode="MiddleTruncation" TextColor="#4C4C4C" FontSize="Small" FontAttributes="Bold" Margin="0,1,0,0"/>
                     </Grid>
                 </DataTemplate>

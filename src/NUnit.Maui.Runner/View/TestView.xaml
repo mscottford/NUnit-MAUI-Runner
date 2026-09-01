@@ -11,7 +11,7 @@
                 Padding="10"
                 BackgroundColor="{DynamicResource defaultBackground}" >
         <StackLayout Orientation="Vertical" Spacing="8" Padding="8"  HorizontalOptions="FillAndExpand" BackgroundColor="White">
-            <Label Text="{Binding Name}" TextColor="{Binding Color}" FontAttributes="Bold" FontSize="Large" />
+            <Label Text="{Binding Name}" AutomationId="TestName" TextColor="{Binding Color}" FontAttributes="Bold" FontSize="Large" />
             <Label Text="{Binding Parent}" LineBreakMode="MiddleTruncation" FontSize="Small" />
 
             <StackLayout Orientation="Horizontal" Spacing="4">

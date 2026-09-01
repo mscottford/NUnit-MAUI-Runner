@@ -28,5 +28,12 @@
 	</array>
 	<key>XSAppIconAssets</key>
 	<string>Assets.xcassets/appicon.appiconset</string>
+	<!--
+		Without a launch screen iOS runs the app in compatibility mode: it is letterboxed at a
+		legacy screen size with black bars, which shrinks the usable height and makes the
+		navigation bar look oversized. An empty UILaunchScreen opts into the full screen.
+	-->
+	<key>UILaunchScreen</key>
+	<dict/>
 </dict>
 </plist>

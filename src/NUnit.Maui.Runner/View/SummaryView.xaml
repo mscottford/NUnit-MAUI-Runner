@@ -4,22 +4,19 @@
              xmlns:local="clr-namespace:NUnit.Runner.View"
              x:Class="NUnit.Runner.View.SummaryView"
              Title="Summary">
-    <ContentPage.Triggers>
-        <DataTrigger TargetType="ContentPage" Binding="{Binding Running}" Value="True">
-            <Setter Property="IsBusy" Value="True" />
-        </DataTrigger>
-    </ContentPage.Triggers>
-
     <ContentPage.Content>
         <Grid>
-            <Grid x:Name="container" BackgroundColor="{StaticResource ForegroundColor}">
-                <ScrollView>
+            <Grid x:Name="container"
+                  RowDefinitions="*,Auto,Auto"
+                  BackgroundColor="{StaticResource ForegroundColor}">
+                <ScrollView Grid.Row="0">
                     <!-- Content -->
                     <VerticalStackLayout>
                         <BoxView Style="{StaticResource Divider}"
                              Margin="16,0"/>
 
                         <Label Style="{StaticResource SummaryLabel}"
+                           AutomationId="TotalTestCount"
                            HorizontalOptions="Center"
                            Margin="16,24,16,6"
                            Text="{Binding Results.TestCount}"/>
@@ -29,37 +26,39 @@
 
                         <!-- Overall results -->
                         <Label Style="{StaticResource SectionLabel}"
+                           AutomationId="OverallResult"
                            Margin="0,24"
                            HorizontalOptions="Fill"
                            Text="{Binding Results.OverallResult, StringFormat='Overall result: {0}'}"/>
                         <Grid ColumnDefinitions="*,Auto,*">
                             <local:ChartControl Grid.Column="0"
                                                 x:Name="chart"
+                                                AutomationId="ResultsChart"
                                                 HorizontalOptions="Center"
                                                 Series="{Binding Results}"/>
                             <BoxView Style="{StaticResource DividerVertical}" Grid.Column="1"/>
                             <VerticalStackLayout Grid.Column="2" Spacing="10">
                                 <!-- Passed -->
                                 <Grid ColumnDefinitions="*,Auto,*">
-                                    <Label Text="{Binding Results.PassCount}" Margin="8,0,0,0" Grid.Column="0"/>
+                                    <Label Text="{Binding Results.PassCount}" AutomationId="PassCount" Margin="8,0,0,0" Grid.Column="0"/>
                                     <Ellipse Style="{StaticResource RoundIcon}" Grid.Column="1" Fill="{StaticResource PassedColor}"/>
                                     <Label Text="Passed" Grid.Column="2"/>
                                 </Grid>
                                 <!-- Errors -->
                                 <Grid ColumnDefinitions="*,Auto,*">
-                                    <Label Text="{Binding Results.ErrorCount}" Margin="8,0,0,0" Grid.Column="0"/>
+                                    <Label Text="{Binding Results.ErrorCount}" AutomationId="ErrorCount" Margin="8,0,0,0" Grid.Column="0"/>
                                     <Ellipse Style="{StaticResource RoundIcon}" Grid.Column="1" Fill="{StaticResource ErrorColor}"/>
                                     <Label Text="Errors" Grid.Column="2"/>
                                 </Grid>
                                 <!-- Failures -->
                                 <Grid ColumnDefinitions="*,Auto,*">
-                                    <Label Text="{Binding Results.FailureCount}" Margin="8,0,0,0" Grid.Column="0"/>
+                                    <Label Text="{Binding Results.FailureCount}" AutomationId="FailureCount" Margin="8,0,0,0" Grid.Column="0"/>
                                     <Ellipse Style="{StaticResource RoundIcon}" Grid.Column="1" Fill="{StaticResource FailureColor}"/>
                                     <Label Text="Failures" Grid.Column="2"/>
                                 </Grid>
                                 <!-- Not run -->
                                 <Grid ColumnDefinitions="*,Auto,*">
-                                    <Label Text="{Binding Results.NotRunCount}" Margin="8,0,0,0" Grid.Column="0"/>
+                                    <Label Text="{Binding Results.NotRunCount}" AutomationId="NotRunCount" Margin="8,0,0,0" Grid.Column="0"/>
                                     <Ellipse Style="{StaticResource RoundIcon}" Grid.Column="1" Fill="{StaticResource IgnoredColor}"/>
                                     <Label Text="Not run" Grid.Column="2"/>
                                 </Grid>
@@ -68,27 +67,42 @@
 
                         <!-- Errors -->
                         <Label x:Name="errorElement"
+                           AutomationId="ErrorMessage"
                            Margin="16"
                            TextColor="{StaticResource FailureColor}"/>
-
-                        <!-- Buttons -->
-                        <Grid ColumnDefinitions="*,*"
-                          RowDefinitions="Auto,Auto">
-                            <Button Text="Run" Command="{Binding RunTestsCommand}" Grid.Row="0" Grid.Column="0" />
-                            <Button Text="Run Failed" Command="{Binding RunFailedTestsCommand}" Grid.Row="1" Grid.Column="0"  />
-                            <Button Text="All Results" Command="{Binding ViewAllResultsCommand}" Grid.Row="0" Grid.Column="1"  />
-                            <Button Text="Failed Results" Command="{Binding ViewFailedResultsCommand}" Grid.Row="1" Grid.Column="1" />
-                        </Grid>
 
                     </VerticalStackLayout>
                 </ScrollView>
 
+                <!-- Buttons: kept out of the ScrollView so they are always reachable, and so
+                     the page looks the same on both platforms regardless of screen height. -->
+                <Grid Grid.Row="1"
+                      ColumnDefinitions="*,*"
+                      RowDefinitions="Auto,Auto"
+                      Padding="16,8">
+                    <Button Text="Run" AutomationId="RunButton" Command="{Binding RunTestsCommand}" Grid.Row="0" Grid.Column="0" />
+                    <Button Text="Run Failed" AutomationId="RunFailedButton" Command="{Binding RunFailedTestsCommand}" Grid.Row="1" Grid.Column="0" />
+                    <Button Text="All Results" AutomationId="AllResultsButton" Command="{Binding ViewAllResultsCommand}" Grid.Row="0" Grid.Column="1" />
+                    <Button Text="Failed Results" AutomationId="FailedResultsButton" Command="{Binding ViewFailedResultsCommand}" Grid.Row="1" Grid.Column="1" />
+                </Grid>
+
                 <!-- Progress -->
-                <VerticalStackLayout VerticalOptions="End" 
-                                 Padding="16,0" 
+                <VerticalStackLayout Grid.Row="2"
+                                 Padding="16,0"
                                  BackgroundColor="{StaticResource ForegroundColor}">
                     <BoxView Style="{StaticResource Divider}" Margin="0,0,0,8"/>
-                    <Label Text="{Binding ExecutingTest}"/>
+                    <Grid ColumnDefinitions="Auto,*">
+                        <ActivityIndicator Grid.Column="0"
+                                           IsRunning="{Binding Running}"
+                                           IsVisible="{Binding Running}"
+                                           Color="{StaticResource AccentColor}"
+                                           VerticalOptions="Center"
+                                           Margin="0,0,8,0"/>
+                        <Label Grid.Column="1"
+                               AutomationId="ExecutingTest"
+                               Text="{Binding ExecutingTest}"
+                               VerticalOptions="Center"/>
+                    </Grid>
                     <ProgressBar Progress="{Binding Progress}"
                              ProgressColor="{StaticResource AccentColor}"
                              BackgroundColor="{StaticResource ForegroundColor}"/>
