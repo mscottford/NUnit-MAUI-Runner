@@ -4,6 +4,10 @@ name: Release
 # messages since the last tag, decides whether that is a patch, minor or major bump, writes the
 # changelog and tags it; the tag is then what the build takes its version from.
 #
+# The tests run first, on the merge result, and nothing is versioned, tagged or published unless
+# they pass. A pull request having been green is not enough on its own: the branch it was tested
+# against may have moved since.
+#
 # When nothing since the last release is significant -- only docs, chores or refactors --
 # versionize exits non-zero and the remaining steps are skipped, so a merge does not have to
 # produce a release.
@@ -20,7 +24,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The same tests a pull request runs, against what actually landed.
+  test:
+    uses: ./.github/workflows/test.yml
+
   release:
+    needs: test
     # See ci.yml: this image is the one with an iOS 26.x SDK, which net10.0-ios26.0 needs.
     runs-on: macos-26
     if: github.repository == 'mscottford/NUnit-MAUI-Runner'
@@ -75,15 +84,31 @@ jobs:
         id: version
         run: echo "tag=$(git describe --tags --exact-match HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Push the release commit and tag
-        if: steps.versionize.outcome == 'success'
-        run: git push --follow-tags origin HEAD:${{ github.ref_name }}
-
+      # Built before anything is pushed: versionize's commit and tag are still local, so a
+      # build or pack failure leaves the branch untouched and the run can simply be retried.
+      # The tag exists locally by this point, which is where the version comes from.
       - name: Build and pack
         if: steps.versionize.outcome == 'success'
         run: |
           dotnet cake --configuration release
           dotnet cake --target Pack --configuration release
+
+      - name: Check the package carries the release version
+        if: steps.versionize.outcome == 'success'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          expected="Artifacts/MScottFord.Forks.NUnit.Maui.Runner.${TAG#v}.nupkg"
+          if [ ! -f "$expected" ]; then
+            echo "Expected $expected but found:" >&2
+            ls -1 Artifacts/*.nupkg >&2
+            exit 1
+          fi
+          echo "Packaged $expected"
+
+      - name: Push the release commit and tag
+        if: steps.versionize.outcome == 'success'
+        run: git push --follow-tags origin HEAD:${{ github.ref_name }}
 
       - name: Publish to NuGet
         if: steps.versionize.outcome == 'success'

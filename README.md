@@ -131,10 +131,18 @@ editing by hand.
 Work happens on branches and lands through pull requests; the default branch is only updated
 when something should be released.
 
-1. Open a pull request. The `CI` workflow builds it, runs the tests on both platforms, and packs
-   the package without publishing it.
-2. Merge it. The `Release` workflow versions, tags, publishes to NuGet and creates a GitHub
-   release.
+1. Open a pull request. `CI` runs the tests on both platforms and packs the package without
+   publishing it.
+2. Merge it. `Release` runs the same tests again, this time against what actually landed, and
+   only then versions, tags, publishes to NuGet and creates a GitHub release.
+
+Both workflows call the same `Test` workflow, so a release cannot run a weaker set of checks
+than a pull request does, and a pull request having been green is not taken as sufficient on its
+own -- the branch it was tested against may have moved since.
+
+Within the release, the package is built and its version checked against the tag *before*
+anything is pushed. A build failure therefore leaves the branch untouched and the run can be
+retried; the tag only appears once there is a package to go with it.
 
 A merge that contains nothing significant -- only `docs`, `chore` or `refactor` commits --
 produces no release: Versionize exits non-zero and the publishing steps are skipped.
