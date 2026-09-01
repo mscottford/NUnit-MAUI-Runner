@@ -38,14 +38,17 @@ const string SimulatorDeviceName = "iPhone 17 Pro";
 
 // --- Version ------------------------------------------------------------------------------
 //
-// version.txt holds the release line (major.minor) and is the only file to edit when starting
-// a new one. Everything else is derived:
+// The released version lives in the packaging project, where Versionize maintains it. Nothing
+// here is edited by hand; the version is derived:
 //
 //   --release-version given   the value passed, normalised. The pipeline passes the git tag.
 //   HEAD is on a tag          that tag, normalised. Makes a local pack of a tagged commit
 //                             produce exactly what the pipeline would publish.
-//   otherwise                 <line>.<commits>-preview, which is what a push to master
-//                             publishes. Unique per commit, and ordered below the release.
+//   otherwise                 the next patch of the released version, suffixed
+//                             -preview.<commits>. Never published; it exists so a local or
+//                             pull request pack has a sane, ordered version.
+
+const string PackageProject = "./nuget/NUnit.Maui.Runner.Package.csproj";
 
 string ResolveVersion() {
     if (!string.IsNullOrWhiteSpace(releaseVersionArgument)) {
@@ -57,9 +60,24 @@ string ResolveVersion() {
         return NormaliseVersion(tag);
     }
 
-    string releaseLine = System.IO.File.ReadAllText("./version.txt").Trim();
+    // Not a release: name it after the next patch of the last released version, so it sorts
+    // above that release and below the one it is heading towards.
+    string released = NormaliseVersion(ReleasedVersion());
     string commits = GitOutput("rev-list --count HEAD") ?? "0";
-    return NormaliseVersion($"{releaseLine}.{commits}-preview");
+
+    var parts = released.Split('-')[0].Split('.');
+    int patch = int.Parse(parts[2]) + 1;
+
+    return $"{parts[0]}.{parts[1]}.{patch}-preview.{commits}";
+}
+
+// The version Versionize maintains in the packaging project.
+string ReleasedVersion() {
+    string value = XmlPeek(PackageProject, "/Project/PropertyGroup/Version");
+    if (string.IsNullOrWhiteSpace(value)) {
+        throw new Exception($"No <Version> element found in {PackageProject}.");
+    }
+    return value;
 }
 
 // Pads the numeric part out to the three components NuGet normalises to anyway, so the version
@@ -425,8 +443,8 @@ public void RunUITestProject(string project, Dictionary<string, string> environm
 Task("Pack")
     .Does(() => {
         // NoBuild skips restore too, so restore explicitly to get the assets file pack needs.
-        DotNetRestore("./nuget/NUnit.Maui.Runner.Package.csproj");
-        DotNetPack("./nuget/NUnit.Maui.Runner.Package.csproj", new DotNetPackSettings {
+        DotNetRestore(PackageProject);
+        DotNetPack(PackageProject, new DotNetPackSettings {
             Configuration = configuration,
             OutputDirectory = "./Artifacts",
             NoBuild = true,
