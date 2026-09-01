@@ -1,4 +1,5 @@
-﻿using NUnit.Runner.Messages;
+﻿using CommunityToolkit.Mvvm.Messaging;
+using NUnit.Runner.Messages;
 
 #if NETFX_CORE
 using Windows.Networking;
@@ -33,10 +34,10 @@ namespace NUnit.Runner.Services {
                 _writer = new StreamWriter(_socket.OutputStream.AsStreamForWrite());
             }
             catch (TaskCanceledException) {
-                MessagingCenter.Send(new ErrorMessage($"Timeout connecting to {_info} after {_info.Timeout} seconds.\n\nIs your server running?"), ErrorMessage.Name);
+                WeakReferenceMessenger.Default.Send(new ErrorMessage($"Timeout connecting to {_info} after {_info.Timeout} seconds.\n\nIs your server running?"));
             }
             catch (Exception ex) {
-                MessagingCenter.Send(new ErrorMessage(ex.Message), ErrorMessage.Name);
+                WeakReferenceMessenger.Default.Send(new ErrorMessage(ex.Message));
             }
 #else
             try {
@@ -50,10 +51,10 @@ namespace NUnit.Runner.Services {
                 _writer = new StreamWriter(stream);
             }
             catch (TimeoutException) {
-                MessagingCenter.Send(new ErrorMessage($"Timeout connecting to {_info} after {_info.Timeout} seconds.\n\nIs your server running?"), ErrorMessage.Name);
+                WeakReferenceMessenger.Default.Send(new ErrorMessage($"Timeout connecting to {_info} after {_info.Timeout} seconds.\n\nIs your server running?"));
             }
             catch (Exception ex) {
-                MessagingCenter.Send(new ErrorMessage($"Cannot connect to {_info}: {ex.Message}"), ErrorMessage.Name);
+                WeakReferenceMessenger.Default.Send(new ErrorMessage($"Cannot connect to {_info}: {ex.Message}"));
             }
 #endif
         }

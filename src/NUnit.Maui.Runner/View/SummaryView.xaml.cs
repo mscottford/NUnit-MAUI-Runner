@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using CommunityToolkit.Mvvm.Messaging;
 using NUnit.Runner.Messages;
 using NUnit.Runner.ViewModel;
 
@@ -18,7 +19,7 @@ namespace NUnit.Runner.View {
 			InitializeComponent();
 
             _model.Completed += (sender, args) => { chart.UpdateChart(); };
-            MessagingCenter.Subscribe<ErrorMessage>(this, ErrorMessage.Name, error => {
+            WeakReferenceMessenger.Default.Register<ErrorMessage>(this, (recipient, error) => {
                 Dispatcher.Dispatch(() => errorElement.Text = error.Message);
             });
         }

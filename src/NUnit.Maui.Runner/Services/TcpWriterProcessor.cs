@@ -1,3 +1,4 @@
+using CommunityToolkit.Mvvm.Messaging;
 using NUnit.Runner.Messages;
 using NUnit.Runner.Helpers;
 
@@ -16,7 +17,7 @@ namespace NUnit.Runner.Services {
                 }
                 catch (Exception exception) {
                     string message = $"Fatal error while trying to send xml result by TCP to {Options.TcpWriterParameters}\n\n{exception.Message}\n\nIs your server running?";
-                    MessagingCenter.Send(new ErrorMessage(message), ErrorMessage.Name);
+                    WeakReferenceMessenger.Default.Send(new ErrorMessage(message));
                 }
             }
 

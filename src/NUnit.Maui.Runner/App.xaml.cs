@@ -12,12 +12,15 @@ public partial class App : Application {
         InitializeComponent ();
 
         _model = new SummaryViewModel();
-        MainPage = new NavigationPage(new SummaryView(_model));
         Options = config.ProvideOption();
 
         foreach (Assembly testItem in config.ProvideAssemblies()) {
             AddTestAssembly(testItem);
         }
+    }
+
+    protected override Window CreateWindow(IActivationState activationState) {
+        return new Window(new NavigationPage(new SummaryView(_model)));
     }
 
     public void AddTestAssembly(Assembly testAssembly, Dictionary<string, object> options = null) {

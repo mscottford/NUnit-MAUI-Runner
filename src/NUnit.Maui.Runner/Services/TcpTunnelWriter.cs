@@ -1,4 +1,5 @@
-﻿using NUnit.Runner.Messages;
+﻿using CommunityToolkit.Mvvm.Messaging;
+using NUnit.Runner.Messages;
 using System.Diagnostics;
 using System.Net;
 
@@ -63,11 +64,11 @@ namespace NUnit.Runner.Services
             }
             catch (TimeoutException)
             {
-                MessagingCenter.Send(new ErrorMessage($"Timeout connecting to {_info} after {_info.Timeout} seconds.\n\nIs your server running?"), ErrorMessage.Name);
+                WeakReferenceMessenger.Default.Send(new ErrorMessage($"Timeout connecting to {_info} after {_info.Timeout} seconds.\n\nIs your server running?"));
             }
             catch (Exception ex)
             {
-                MessagingCenter.Send(new ErrorMessage($"Cannot connect to {_info}: {ex.Message}"), ErrorMessage.Name);
+                WeakReferenceMessenger.Default.Send(new ErrorMessage($"Cannot connect to {_info}: {ex.Message}"));
             }
 #endif
         }

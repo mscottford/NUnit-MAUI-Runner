@@ -19,14 +19,14 @@ public class Tests {
     
     [Test]
     public void RunTestSuccessOnUI() {
-        Device.InvokeOnMainThreadAsync(() => {
+        MainThread.InvokeOnMainThreadAsync(() => {
             Assert.True(true);
         }).Wait();
     }
     
     [Test]
     public void RunTestFailedOnUI() {
-        Device.InvokeOnMainThreadAsync(() => {
+        MainThread.InvokeOnMainThreadAsync(() => {
             Assert.True(false);
         }).Wait();
     }
@@ -43,14 +43,14 @@ public class Tests {
     
     [Test]
     public void CatchExceptionSuccessOnUI() {
-        Device.InvokeOnMainThreadAsync(() => {
+        MainThread.InvokeOnMainThreadAsync(() => {
             Assert.Throws<Exception>(() => throw new Exception("Test"));
         }).Wait();
     }
     
     [Test]
     public void CatchExceptionFailedOnUI() {
-        Device.InvokeOnMainThreadAsync(() => {
+        MainThread.InvokeOnMainThreadAsync(() => {
             Assert.Throws<Exception>(() => { });
         }).Wait();
     }
