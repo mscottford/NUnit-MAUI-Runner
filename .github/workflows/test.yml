@@ -3,42 +3,22 @@ name: Test
 # Called by ci.yml for pull requests and by release.yml before it publishes anything, so the
 # same tests gate both. Keeping it in one place means a release cannot quietly run a different,
 # weaker set of checks than a pull request does.
+#
+# The platforms run as separate jobs, in parallel, on different runners, because they cannot
+# share one. iOS needs Xcode, so it has to be macOS. The Android emulator needs a hypervisor,
+# and a hosted macOS runner cannot provide one: it is itself virtualised, so QEMU is refused
+# with HV_UNSUPPORTED and exits. Passing -accel off does not help, because the emulator asks for
+# HVF regardless. Linux runners do have KVM, so Android runs there.
 on:
   workflow_call:
 
 jobs:
-  test:
-    name: test (${{ matrix.platform }})
-
-    strategy:
-      # Both results are wanted. Without this, the first platform to fail cancels the other and
-      # hides whether it would have passed.
-      fail-fast: false
-      matrix:
-        include:
-          - platform: ios
-            extraArguments: ""
-          - platform: android
-            # A hosted runner is itself virtualised, so the emulator is refused a hypervisor
-            # there and fails with HV_UNSUPPORTED. -accel off falls back to software CPU
-            # emulation, which works without one but is far slower, hence the longer boot
-            # timeout.
-            extraArguments: "--emulator-accel=off --emulator-boot-timeout=1200"
-
-    # macos-26 is pinned rather than macos-latest for two reasons: it is the image that carries
-    # an iOS 26.x SDK, which net10.0-ios26.0 needs, and it has the Android emulator
-    # preinstalled, so Android does not need a separate Linux runner.
+  ios:
+    name: test (ios)
+    # macos-26 is pinned rather than macos-latest because it is the image carrying an iOS 26.x
+    # SDK, which net10.0-ios26.0 needs.
     runs-on: macos-26
-
-    # Software CPU emulation is slow but not unbounded; without this a stuck emulator would sit
-    # there for the six hour default.
-    timeout-minutes: 60
-
-    env:
-      # Named once: it is both the cache key and what sdkmanager installs.
-      ANDROID_SYSTEM_IMAGE: system-images;android-36;google_apis;arm64-v8a
-      # Where the preinstalled SDK lives on this image, per the runner image manifest.
-      ANDROID_SDK_DIR: /Users/runner/Library/Android/sdk
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -46,9 +26,6 @@ jobs:
           # The build script derives the version from the commit count and nearest tag.
           fetch-depth: 0
 
-      # Left as a single cache step, unlike the system image below: this one is populated by the
-      # pack job, which does not run tests and so reliably succeeds and saves. The packages are
-      # also cheap enough to refetch that it is not worth the extra steps.
       - name: Cache NuGet packages
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -56,62 +33,100 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/*.props', '.config/dotnet-tools.json') }}
           restore-keys: nuget-${{ runner.os }}-
 
-      # The system image is over a gigabyte and none of the runner images ship one, so it is
-      # worth caching. Restore and save are separate steps rather than one cache step: the
-      # combined form only saves when the job succeeds, so a failing test run threw the download
-      # away and the next run fetched it again. Saving happens right after the install below,
-      # before anything that can fail.
-      - name: Restore the Android system image
-        if: matrix.platform == 'android'
-        id: system-image-cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          path: ${{ env.ANDROID_SDK_DIR }}/system-images
-          key: android-system-image-${{ env.ANDROID_SYSTEM_IMAGE }}
+          dotnet-version: '10.0.x'
+
+      # Both, because on macOS the projects offer both target frameworks and restore resolves
+      # all of them even when only one is built.
+      - name: Install MAUI workloads
+        run: dotnet workload install maui-ios maui-android
+
+      - name: Install tools
+        run: dotnet tool restore
+
+      # --keep-simulator skips the erase, cold boot and shutdown a development machine wants.
+      # The runner is discarded when the job ends, and the erase alone was enough to push this
+      # past its timeout.
+      - name: Test
+        run: |
+          dotnet cake --target Test --configuration release \
+            --platform=ios \
+            --keep-simulator
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-reports-ios
+          path: |
+            Artifacts/*.xml
+            Artifacts/*.log
+            Artifacts/xharness-*/**
+          if-no-files-found: warn
+
+  android:
+    name: test (android)
+    # Linux, for KVM. The release APK carries x86_64 native libraries alongside arm64, so it
+    # runs on an x86_64 emulator here without any change to how it is built.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/*.props', '.config/dotnet-tools.json') }}
+          restore-keys: nuget-${{ runner.os }}-
 
       - name: Set up .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '10.0.x'
 
-      - name: Install MAUI workloads
-        run: dotnet workload install maui-android maui-ios
+      # Android only: the projects do not offer the iOS target framework off macOS.
+      - name: Install MAUI workload
+        run: dotnet workload install maui-android
 
       - name: Install tools
         run: dotnet tool restore
 
-      # The runner images ship the Android SDK but no system image, so the emulator has nothing
-      # to boot until one is installed. The build script then picks the newest installed image
-      # matching the host architecture.
-      - name: Install an Android system image
-        if: matrix.platform == 'android' && steps.system-image-cache.outputs.cache-hit != 'true'
+      # The emulator needs /dev/kvm, which the runner user cannot open by default.
+      - name: Enable KVM
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "$ANDROID_SYSTEM_IMAGE"
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
 
-      # Saved before the tests run, so the download survives a test failure.
-      - name: Save the Android system image
-        if: matrix.platform == 'android' && steps.system-image-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ env.ANDROID_SDK_DIR }}/system-images
-          key: android-system-image-${{ env.ANDROID_SYSTEM_IMAGE }}
-
-      # --keep-simulator and --keep-emulator skip the erase, cold boot and shutdown that a
-      # development machine wants. The runner is discarded when the job ends, so none of that
-      # buys anything here, and the erase alone was enough to push the iOS run over its timeout.
+      # This action provisions and boots the emulator, which is the part the build script cannot
+      # do here: it installs the emulator package and system image the runner image does not
+      # ship, and caches the AVD between runs. The build script is then pointed at the device it
+      # booted, and leaves it running rather than shutting it down.
       - name: Test
-        run: |
-          dotnet cake --target Test --configuration release \
-            --platform=${{ matrix.platform }} \
-            --keep-simulator --keep-emulator \
-            ${{ matrix.extraArguments }}
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          disable-animations: true
+          script: |
+            dotnet cake --target Test --configuration release \
+              --platform=android \
+              --android-device=emulator-5554
 
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: test-reports-${{ matrix.platform }}
+          name: test-reports-android
           path: |
             Artifacts/*.xml
             Artifacts/*.log

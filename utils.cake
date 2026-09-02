@@ -297,16 +297,15 @@ public void EnsureAvdExists(DirectoryPath sdkRoot, string avdName, string system
 
 // Boots the AVD headless on a fixed port and waits for it to finish booting. Returns the
 // device id. -no-snapshot and -wipe-data give each run a clean device.
-// acceleration is passed straight to the emulator's -accel flag, or left off entirely when
-// empty so the emulator chooses. "off" forces software CPU emulation, which is what a host that
-// cannot provide a hypervisor needs: a hosted macOS runner is itself virtualised, and QEMU is
-// refused there with HV_UNSUPPORTED.
+// Needs a host that can provide a hypervisor. A hosted macOS runner cannot -- it is itself
+// virtualised, and QEMU is refused there with HV_UNSUPPORTED -- and passing -accel off does not
+// help, because the emulator asks for HVF regardless and dies when it is refused. That is why
+// CI runs the Android tests on Linux, where KVM is available.
 public string StartAndroidEmulator(
     DirectoryPath sdkRoot,
     string avdName,
     int port,
-    int bootTimeoutSeconds,
-    string acceleration) {
+    int bootTimeoutSeconds) {
 
     string deviceId = $"emulator-{port}";
 
@@ -334,7 +333,6 @@ public string StartAndroidEmulator(
         out accelerationCheck);
     Information("Emulator acceleration check (advisory): " +
         string.Join(" ", (accelerationCheck ?? Enumerable.Empty<string>()).Select(l => l.Trim())));
-    Information($"Emulator acceleration mode: {(string.IsNullOrWhiteSpace(acceleration) ? "default" : acceleration)}");
 
     var emulatorLog = MakeAbsolute(File("./Artifacts/emulator.log"));
     EnsureDirectoryExists(emulatorLog.GetDirectory());
@@ -355,7 +353,6 @@ public string StartAndroidEmulator(
         " -no-snapshot" +
         " -wipe-data" +
         " -gpu swiftshader_indirect" +
-        (string.IsNullOrWhiteSpace(acceleration) ? "" : $" -accel {acceleration}") +
         $" > '{emulatorLog.FullPath}' 2>&1";
 
     StartAndReturnProcess("sh", new ProcessSettings {

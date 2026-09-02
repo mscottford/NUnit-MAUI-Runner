@@ -1,7 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <TargetFrameworks>net10.0-android;net10.0-ios26.0</TargetFrameworks>
+    <!-- iOS needs Xcode, so it is only offered on macOS. Without the condition these
+         projects cannot be evaluated at all on the Linux runner that the Android
+         tests use. -->
+    <TargetFrameworks>net10.0-android</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">$(TargetFrameworks);net10.0-ios26.0</TargetFrameworks>
     <OutputType>Library</OutputType>
     <RootNamespace>NUnit.Maui.Runner</RootNamespace>
     <UseMaui>true</UseMaui>
