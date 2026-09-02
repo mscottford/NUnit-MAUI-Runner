@@ -297,11 +297,16 @@ public void EnsureAvdExists(DirectoryPath sdkRoot, string avdName, string system
 
 // Boots the AVD headless on a fixed port and waits for it to finish booting. Returns the
 // device id. -no-snapshot and -wipe-data give each run a clean device.
+// acceleration is passed straight to the emulator's -accel flag, or left off entirely when
+// empty so the emulator chooses. "off" forces software CPU emulation, which is what a host that
+// cannot provide a hypervisor needs: a hosted macOS runner is itself virtualised, and QEMU is
+// refused there with HV_UNSUPPORTED.
 public string StartAndroidEmulator(
     DirectoryPath sdkRoot,
     string avdName,
     int port,
-    int bootTimeoutSeconds) {
+    int bootTimeoutSeconds,
+    string acceleration) {
 
     string deviceId = $"emulator-{port}";
 
@@ -314,9 +319,11 @@ public string StartAndroidEmulator(
 
     string emulator = sdkRoot.CombineWithFilePath("emulator/emulator").FullPath;
 
-    // Worth knowing before a boot failure: without hardware acceleration the emulator is slow
-    // enough to look hung. This is a short-lived process, so reading its output is safe.
-    IEnumerable<string> acceleration;
+    // Advisory only. This reports whether the OS advertises hypervisor support, not whether a
+    // VM can actually be created: inside a virtualised host it prints exactly the same thing as
+    // a machine where acceleration works, and the emulator then fails with HV_UNSUPPORTED. The
+    // emulator log is the thing that tells you what really happened.
+    IEnumerable<string> accelerationCheck;
     StartProcess(
         emulator,
         new ProcessSettings {
@@ -324,9 +331,10 @@ public string StartAndroidEmulator(
             RedirectStandardOutput = true,
             RedirectStandardError = true
         },
-        out acceleration);
-    Information("Emulator acceleration: " +
-        string.Join(" ", (acceleration ?? Enumerable.Empty<string>()).Select(l => l.Trim())));
+        out accelerationCheck);
+    Information("Emulator acceleration check (advisory): " +
+        string.Join(" ", (accelerationCheck ?? Enumerable.Empty<string>()).Select(l => l.Trim())));
+    Information($"Emulator acceleration mode: {(string.IsNullOrWhiteSpace(acceleration) ? "default" : acceleration)}");
 
     var emulatorLog = MakeAbsolute(File("./Artifacts/emulator.log"));
     EnsureDirectoryExists(emulatorLog.GetDirectory());
@@ -347,6 +355,7 @@ public string StartAndroidEmulator(
         " -no-snapshot" +
         " -wipe-data" +
         " -gpu swiftshader_indirect" +
+        (string.IsNullOrWhiteSpace(acceleration) ? "" : $" -accel {acceleration}") +
         $" > '{emulatorLog.FullPath}' 2>&1";
 
     StartAndReturnProcess("sh", new ProcessSettings {

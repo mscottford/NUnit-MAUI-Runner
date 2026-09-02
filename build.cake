@@ -29,6 +29,13 @@ bool keepEmulator = HasArgument("keep-emulator");
 string androidDeviceArgument = Argument("android-device", "");
 string iosDeviceArgument = Argument("ios-device", "");
 
+// Passed to the emulator's -accel flag. Left empty locally, where the hypervisor works and the
+// emulator boots in seconds; CI passes "off" because a hosted runner is itself virtualised and
+// the emulator is refused the hypervisor there. Software emulation is far slower, hence the
+// separate boot timeout.
+string emulatorAccelerationArgument = Argument("emulator-accel", "");
+int emulatorBootTimeout = Argument("emulator-boot-timeout", AndroidEmulatorBootTimeoutSeconds);
+
 // Must match the TargetFrameworks in src/NUnit.Maui.Runner and src/NUnitTests.
 const string AndroidTfm = "net10.0-android";
 const string IosTfm = "net10.0-ios26.0";
@@ -303,7 +310,7 @@ public void RunAndroidTests() {
         ? androidDeviceArgument
         : StartAndroidEmulator(
             AndroidSdkRoot(), AndroidAvdName, AndroidEmulatorPort,
-            AndroidEmulatorBootTimeoutSeconds);
+            emulatorBootTimeout, emulatorAccelerationArgument);
 
     if (deviceSupplied) {
         Information($"Using the supplied device {deviceId}.");
@@ -437,7 +444,7 @@ public void RunAndroidUITests() {
         ? androidDeviceArgument
         : StartAndroidEmulator(
             AndroidSdkRoot(), AndroidAvdName, AndroidEmulatorPort,
-            AndroidEmulatorBootTimeoutSeconds);
+            emulatorBootTimeout, emulatorAccelerationArgument);
 
     try {
         XHarnessAndroidInstall(apk, TestAppPackageName, deviceId, "./Artifacts/xharness-android");

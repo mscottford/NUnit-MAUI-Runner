@@ -15,12 +15,24 @@ jobs:
       # hides whether it would have passed.
       fail-fast: false
       matrix:
-        platform: [ios, android]
+        include:
+          - platform: ios
+            extraArguments: ""
+          - platform: android
+            # A hosted runner is itself virtualised, so the emulator is refused a hypervisor
+            # there and fails with HV_UNSUPPORTED. -accel off falls back to software CPU
+            # emulation, which works without one but is far slower, hence the longer boot
+            # timeout.
+            extraArguments: "--emulator-accel=off --emulator-boot-timeout=1200"
 
     # macos-26 is pinned rather than macos-latest for two reasons: it is the image that carries
     # an iOS 26.x SDK, which net10.0-ios26.0 needs, and it has the Android emulator
     # preinstalled, so Android does not need a separate Linux runner.
     runs-on: macos-26
+
+    # Software CPU emulation is slow but not unbounded; without this a stuck emulator would sit
+    # there for the six hour default.
+    timeout-minutes: 60
 
     env:
       # Named once: it is both the cache key and what sdkmanager installs.
@@ -92,7 +104,8 @@ jobs:
         run: |
           dotnet cake --target Test --configuration release \
             --platform=${{ matrix.platform }} \
-            --keep-simulator --keep-emulator
+            --keep-simulator --keep-emulator \
+            ${{ matrix.extraArguments }}
 
       - name: Upload test reports
         if: always()
