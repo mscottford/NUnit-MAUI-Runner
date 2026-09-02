@@ -23,8 +23,15 @@ class RunnerConfig : IRunnerConfiguration {
 	public TestOptions ProvideOption() {
 		return new TestOptions() {
 			AutoRun = true,
+#if AUTOMATED_TEST_RUN
+			// Only exit by itself when the build script is driving the run; leaving the app
+			// open is what you want when launching it from an IDE.
 			TerminateAfterExecution = true,
-			TcpWriterParameters = new TcpWriterInfo(localhost, 13000)
+			// Only stream results when the build script has a listener on the other end.
+			// Outside an automated run nothing is listening, and the attempt surfaces a red
+			// "Cannot connect to ..." banner in the app.
+			TcpWriterParameters = new TcpWriterInfo(localhost, 13000),
+#endif
 		};
 	}
 	public IEnumerable<Assembly> ProvideAssemblies() {

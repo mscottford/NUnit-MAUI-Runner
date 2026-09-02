@@ -1,0 +1,61 @@
+name: CI
+
+# Pull requests are built and tested but never published; releasing happens only when something
+# lands on the default branch, which release.yml covers by calling the same test workflow.
+#
+# There is deliberately no push trigger. A push to a branch with an open pull request fires both
+# events, so every commit was being built twice over -- once as push, once as pull_request, on
+# the same commit. The pull_request run is the one worth keeping: it tests the merge result
+# rather than the branch tip. The cost is that a branch with no pull request yet gets no CI,
+# which is the point of working through pull requests.
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  pack:
+    # Proves the package still builds, and leaves it downloadable for checking a change before
+    # it is released.
+    runs-on: macos-26
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/*.props', '.config/dotnet-tools.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install MAUI workloads
+        run: dotnet workload install maui-android maui-ios
+
+      - name: Install tools
+        run: dotnet tool restore
+
+      - name: Build and pack
+        run: |
+          dotnet cake --configuration release
+          dotnet cake --target Pack --configuration release
+
+      - name: Upload package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: nupkg
+          path: Artifacts/*.nupkg
+          if-no-files-found: error

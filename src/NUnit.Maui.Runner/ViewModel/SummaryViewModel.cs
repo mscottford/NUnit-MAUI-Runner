@@ -143,7 +143,7 @@ namespace NUnit.Runner.ViewModel {
             _resultProcessor = TestResultProcessor.BuildChainOfResponsability(Options);
             await _resultProcessor.Process(summary).ConfigureAwait(false);
 
-            Device.BeginInvokeOnMainThread(() => {
+            MainThread.BeginInvokeOnMainThread(() => {
                 Results = summary;
                 Running = false;
                 Progress = 0;
@@ -159,7 +159,7 @@ namespace NUnit.Runner.ViewModel {
 #if __IOS__
             var selector = new ObjCRuntime.Selector("terminateWithSuccess");
             UIKit.UIApplication.SharedApplication.PerformSelector(selector, UIKit.UIApplication.SharedApplication, 0);
-#elif __DROID__
+#elif __ANDROID__
             System.Environment.Exit(0);
 #elif WINDOWS_UWP
             Windows.UI.Xaml.Application.Current.Exit();

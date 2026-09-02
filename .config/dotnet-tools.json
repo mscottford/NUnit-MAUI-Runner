@@ -6,13 +6,22 @@
       "version": "2.2.0",
       "commands": [
         "dotnet-cake"
-      ]
+      ],
+      "rollForward": false
     },
     "microsoft.dotnet.xharness.cli": {
-      "version": "1.0.0-prerelease.22415.1",
+      "version": "10.0.0-prerelease.26431.1",
       "commands": [
         "xharness"
-      ]
+      ],
+      "rollForward": false
+    },
+    "versionize": {
+      "version": "2.6.0",
+      "commands": [
+        "versionize"
+      ],
+      "rollForward": false
     }
   }
 }

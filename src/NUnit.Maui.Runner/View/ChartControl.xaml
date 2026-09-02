@@ -3,17 +3,30 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     MinimumWidthRequest="100"
+    WidthRequest="100"
+    HeightRequest="100"
+    HorizontalOptions="Center"
+    VerticalOptions="Center"
     x:Class="NUnit.Runner.View.ChartControl">
+    <!--
+        Each arc runs from the top of the circle clockwise, and they are drawn longest first so
+        the shorter ones layer on top: ignored, then failures, then errors, then passes. The
+        stroke thickness is what gives the ring its width.
+    -->
     <Polyline x:Name="figure1"
-           Stroke="{StaticResource IgnoredColor}"/>
+              Stroke="{StaticResource IgnoredColor}"
+              StrokeThickness="16"/>
 
     <Polyline x:Name="figure2"
-              Stroke="{StaticResource FailureColor}"/>
+              Stroke="{StaticResource FailureColor}"
+              StrokeThickness="16"/>
 
     <Polyline x:Name="figure3"
-              Stroke="{StaticResource ErrorColor}"/>
-    
+              Stroke="{StaticResource ErrorColor}"
+              StrokeThickness="16"/>
+
     <Polyline x:Name="figure4"
-              Stroke="{StaticResource PassedColor}"/>
-    
+              Stroke="{StaticResource PassedColor}"
+              StrokeThickness="16"/>
+
 </Grid>

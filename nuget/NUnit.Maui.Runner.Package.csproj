@@ -1,0 +1,22 @@
+<!--
+  Packaging-only project. It builds no code; it exists so `dotnet pack` can produce the
+  package from the nuspec beside it, which avoids needing nuget.exe (and therefore mono)
+  on macOS and Linux build agents. Run the Build target first to populate ../Build.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!--
+      The released version, and the one place it is recorded. Versionize bumps this from the
+      conventional commit messages when a release is cut, and tags the result; build.cake reads
+      it back for builds that are not on a tag. Starting point is the 1.16 line this fork
+      diverged from upstream at.
+    -->
+    <Version>1.16.0</Version>
+    <TargetFramework>net10.0</TargetFramework>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <NoBuild>true</NoBuild>
+    <NuspecFile>MScottFord.Forks.NUnit.Maui.Runner.nuspec</NuspecFile>
+    <NuspecBasePath>$(MSBuildProjectDirectory)</NuspecBasePath>
+  </PropertyGroup>
+</Project>

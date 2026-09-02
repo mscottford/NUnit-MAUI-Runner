@@ -1,0 +1,134 @@
+name: Test
+
+# Called by ci.yml for pull requests and by release.yml before it publishes anything, so the
+# same tests gate both. Keeping it in one place means a release cannot quietly run a different,
+# weaker set of checks than a pull request does.
+#
+# The platforms run as separate jobs, in parallel, on different runners, because they cannot
+# share one. iOS needs Xcode, so it has to be macOS. The Android emulator needs a hypervisor,
+# and a hosted macOS runner cannot provide one: it is itself virtualised, so QEMU is refused
+# with HV_UNSUPPORTED and exits. Passing -accel off does not help, because the emulator asks for
+# HVF regardless. Linux runners do have KVM, so Android runs there.
+on:
+  workflow_call:
+
+jobs:
+  ios:
+    name: test (ios)
+    # macos-26 is pinned rather than macos-latest because it is the image carrying an iOS 26.x
+    # SDK, which net10.0-ios26.0 needs.
+    runs-on: macos-26
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The build script derives the version from the commit count and nearest tag.
+          fetch-depth: 0
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/*.props', '.config/dotnet-tools.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+
+      # Both, because on macOS the projects offer both target frameworks and restore resolves
+      # all of them even when only one is built.
+      - name: Install MAUI workloads
+        run: dotnet workload install maui-ios maui-android
+
+      - name: Install tools
+        run: dotnet tool restore
+
+      # --keep-simulator skips the erase, cold boot and shutdown a development machine wants.
+      # The runner is discarded when the job ends, and the erase alone was enough to push this
+      # past its timeout.
+      - name: Test
+        run: |
+          dotnet cake --target Test --configuration release \
+            --platform=ios \
+            --keep-simulator
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-reports-ios
+          path: |
+            Artifacts/*.xml
+            Artifacts/*.log
+            Artifacts/xharness-*/**
+          if-no-files-found: warn
+
+  android:
+    name: test (android)
+    # Linux, for KVM. The release APK carries x86_64 native libraries alongside arm64, so it
+    # runs on an x86_64 emulator here without any change to how it is built.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/*.props', '.config/dotnet-tools.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+
+      # Android only: the projects do not offer the iOS target framework off macOS.
+      - name: Install MAUI workload
+        run: dotnet workload install maui-android
+
+      - name: Install tools
+        run: dotnet tool restore
+
+      # The emulator needs /dev/kvm, which the runner user cannot open by default.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # This action provisions and boots the emulator, which is the part the build script cannot
+      # do here: it installs the emulator package and system image the runner image does not
+      # ship, and caches the AVD between runs. The build script is then pointed at the device it
+      # booted, and leaves it running rather than shutting it down.
+      - name: Test
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          disable-animations: true
+          # One line on purpose. The action hands this to sh -c in a way that does not survive
+          # backslash continuations: split over lines, everything after the first is dropped and
+          # cake runs without the arguments that follow.
+          script: dotnet cake --target Test --configuration release --platform=android --android-device=emulator-5554
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-reports-android
+          path: |
+            Artifacts/*.xml
+            Artifacts/*.log
+            Artifacts/xharness-*/**
+          if-no-files-found: warn

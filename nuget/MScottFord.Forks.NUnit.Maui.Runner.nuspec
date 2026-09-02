@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
+  <metadata>
+    <id>MScottFord.Forks.NUnit.Maui.Runner</id>
+    <!-- Substituted at pack time from version.txt; see the Version section of build.cake. -->
+    <version>$version$</version>
+    <title>NUnit Runner for testing .NET MAUI (fork)</title>
+    <authors>M. Scott Ford</authors>
+    <license type="expression">MIT</license>
+    <projectUrl>https://github.com/mscottford/NUnit-MAUI-Runner</projectUrl>
+    <repository type="git" url="https://github.com/mscottford/NUnit-MAUI-Runner.git" />
+    <description>Runs NUnit tests inside a .NET MAUI app on a device, simulator or emulator, and reports the results in-app or over TCP.
+
+This is a fork of NUnit.Maui.Runner by Nikita Romanov (https://github.com/JaneySprings/NUnit-MAUI-Runner), by way of https://github.com/Abhirasmanu-Trimble/NUnit-MAUI-Runner, published so that a build targeting .NET 10 and MAUI 10 is available on NuGet. The assembly name and namespaces are unchanged from upstream, so existing code needs no edits.
+
+Fork maintained at https://github.com/mscottford/NUnit-MAUI-Runner.</description>
+    <tags>NUnit MAUI .NET fork</tags>
+    <!--
+      These must stay in step with the PackageReferences in
+      src/NUnit.Maui.Runner/NUnit.Maui.Runner.csproj. Without them consumers of the package
+      resolve NUnit.Maui.Runner.dll but none of the assemblies it references.
+      nunit.framework.dll ships inside this package, so it is not listed here.
+    -->
+    <dependencies>
+      <group targetFramework="net10.0-android36.0">
+        <dependency id="Microsoft.Maui.Controls" version="10.0.20" />
+        <dependency id="Microsoft.Maui.Controls.Compatibility" version="10.0.20" />
+        <dependency id="CommunityToolkit.Mvvm" version="8.4.2" />
+      </group>
+      <group targetFramework="net10.0-ios26.0">
+        <dependency id="Microsoft.Maui.Controls" version="10.0.20" />
+        <dependency id="Microsoft.Maui.Controls.Compatibility" version="10.0.20" />
+        <dependency id="CommunityToolkit.Mvvm" version="8.4.2" />
+      </group>
+    </dependencies>
+  </metadata>
+  <files>
+    <file src=".\..\Build\Android\NUnit.Maui.Runner.dll" target="lib\net10.0-android36.0"/>
+    <file src=".\..\Build\nunit.framework.dll" target="lib\net10.0-android36.0"/>
+
+    <file src=".\..\Build\iOS\NUnit.Maui.Runner.dll" target="lib\net10.0-ios26.0"/>
+    <file src=".\..\Build\nunit.framework.dll" target="lib\net10.0-ios26.0"/>
+  </files>
+</package>

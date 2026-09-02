@@ -1,0 +1,32 @@
+# Tooling for this repository. Run `mise install` to get all of it.
+#
+# The .NET SDK, Android SDK and Xcode are not managed here: they are large platform
+# installations with their own installers, and the build script locates them itself.
+
+[tools]
+# Appium runs on Node, so the runtime is pinned rather than left to whatever is on the machine.
+node = "24"
+
+# Drives the UI tests in src/UITests.*. The Appium *drivers* are not npm tools in their own
+# right — Appium installs them into its own home directory — so `mise run setup-appium` below
+# adds them.
+"npm:appium" = "3.7.0"
+
+[tasks.setup-appium]
+description = "Install the Appium drivers the UI tests need (Android and iOS)"
+run = """
+set -e
+for driver in uiautomator2 xcuitest; do
+  if appium driver list --installed 2>&1 | grep -q "$driver"; then
+    echo "appium driver '$driver' already installed"
+  else
+    echo "installing appium driver '$driver'"
+    appium driver install "$driver"
+  fi
+done
+"""
+
+[tasks.setup]
+description = "Install everything needed to build and test this repository"
+depends = ["setup-appium"]
+run = "dotnet tool restore"

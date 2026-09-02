@@ -1,7 +1,30 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net8.0</TargetFrameworks>
+    <TargetFrameworks>net10.0</TargetFrameworks>
     <RootNamespace>NUnit.Framework</RootNamespace>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+  <PropertyGroup>
+    <!--
+      This project is a vendored copy of the NUnit framework, not code maintained here. Upstream
+      is part way through annotating for nullable reference types (149 of its files opt in with an
+      explicit directive) and it uses a handful of APIs that later .NET releases have obsoleted or
+      marked as platform specific. Editing any of that would risk changing assertion behaviour and
+      would be lost the next time the copy is refreshed, so the warnings it produces are
+      suppressed here rather than in the source.
+
+      The codes are listed individually on purpose. A blanket NoWarn would also hide anything new
+      that a future compiler or analyser finds in this code, which is exactly what would be worth
+      knowing about.
+
+      CS0168      unused local
+      CS0672      override of an obsolete member
+      CS85xx      nullable reference types
+      CA1416      platform specific APIs, guarded at run time
+      SYSLIB0012  Assembly.CodeBase
+      SYSLIB0032  HandleProcessCorruptedStateExceptions
+      SYSLIB0051  formatter based serialization
+    -->
+    <NoWarn>$(NoWarn);CA1416;CS0168;CS0672;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8620;CS8767;SYSLIB0012;SYSLIB0032;SYSLIB0051</NoWarn>
   </PropertyGroup>
 </Project>
