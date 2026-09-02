@@ -143,7 +143,7 @@ const string TestAppPackageName = "com.companyname.nunittests";
 // of the default 5554 that a manually started emulator takes.
 const string AndroidAvdName = "NUnitMauiRunner_Test";
 const int AndroidEmulatorPort = 5560;
-const int AndroidEmulatorBootTimeoutSeconds = 300;
+const int AndroidEmulatorBootTimeoutSeconds = 600;
 
 // Port the runner streams its XML report to, from RunnerConfig in src/NUnitTests/MauiProgram.cs.
 // The Android app reaches it on 10.0.2.2, the emulator's alias for the host loopback.
@@ -207,7 +207,7 @@ Task("Build")
 // report it streams back. This is the end-to-end check that the runner works on-device.
 // Use --platform=ios or --platform=android to run just one.
 Task("Test")
-    .IsDependentOn("Build")
+    .IsDependentOn("Prepare")
     .Does(() => {
         bool runIos = platform == "both" || platform == "ios";
         bool runAndroid = platform == "both" || platform == "android";
@@ -371,7 +371,7 @@ public void VerifyTestReport(string reportPath) {
 // the XML report cannot tell you. Needs `appium` on PATH with the uiautomator2 and xcuitest
 // drivers installed, and it leaves the app installed so Appium can attach to it.
 Task("UITest")
-    .IsDependentOn("Build")
+    .IsDependentOn("Prepare")
     .Does(() => {
         bool runIos = platform == "both" || platform == "ios";
         bool runAndroid = platform == "both" || platform == "android";

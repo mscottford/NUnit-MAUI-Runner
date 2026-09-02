@@ -8,9 +8,18 @@ on:
 
 jobs:
   test:
+    name: test (${{ matrix.platform }})
+
+    strategy:
+      # Both results are wanted. Without this, the first platform to fail cancels the other and
+      # hides whether it would have passed.
+      fail-fast: false
+      matrix:
+        platform: [ios, android]
+
     # macos-26 is pinned rather than macos-latest for two reasons: it is the image that carries
     # an iOS 26.x SDK, which net10.0-ios26.0 needs, and it has the Android emulator
-    # preinstalled, so both platforms can be tested from one job.
+    # preinstalled, so Android does not need a separate Linux runner.
     runs-on: macos-26
 
     env:
@@ -41,6 +50,7 @@ jobs:
       # away and the next run fetched it again. Saving happens right after the install below,
       # before anything that can fail.
       - name: Restore the Android system image
+        if: matrix.platform == 'android'
         id: system-image-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -62,14 +72,14 @@ jobs:
       # to boot until one is installed. The build script then picks the newest installed image
       # matching the host architecture.
       - name: Install an Android system image
-        if: steps.system-image-cache.outputs.cache-hit != 'true'
+        if: matrix.platform == 'android' && steps.system-image-cache.outputs.cache-hit != 'true'
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "$ANDROID_SYSTEM_IMAGE"
 
       # Saved before the tests run, so the download survives a test failure.
       - name: Save the Android system image
-        if: steps.system-image-cache.outputs.cache-hit != 'true'
+        if: matrix.platform == 'android' && steps.system-image-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.ANDROID_SDK_DIR }}/system-images
@@ -81,14 +91,16 @@ jobs:
       - name: Test
         run: |
           dotnet cake --target Test --configuration release \
+            --platform=${{ matrix.platform }} \
             --keep-simulator --keep-emulator
 
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: test-reports
+          name: test-reports-${{ matrix.platform }}
           path: |
             Artifacts/*.xml
+            Artifacts/*.log
             Artifacts/xharness-*/**
           if-no-files-found: warn

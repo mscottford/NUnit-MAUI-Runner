@@ -312,26 +312,50 @@ public string StartAndroidEmulator(
 
     EnsureAvdExists(sdkRoot, avdName, FindAndroidSystemImage(sdkRoot));
 
-    Information($"Starting emulator '{avdName}' on {deviceId}");
-    StartAndReturnProcess(
-        sdkRoot.CombineWithFilePath("emulator/emulator").FullPath,
+    string emulator = sdkRoot.CombineWithFilePath("emulator/emulator").FullPath;
+
+    // Worth knowing before a boot failure: without hardware acceleration the emulator is slow
+    // enough to look hung. This is a short-lived process, so reading its output is safe.
+    IEnumerable<string> acceleration;
+    StartProcess(
+        emulator,
         new ProcessSettings {
-            Arguments = new ProcessArgumentBuilder()
-                .Append("-avd").Append(avdName)
-                .Append("-port").Append(port.ToString())
-                .Append("-no-window")
-                .Append("-no-audio")
-                .Append("-no-boot-anim")
-                .Append("-no-snapshot")
-                .Append("-wipe-data")
-                .Append("-gpu").Append("swiftshader_indirect"),
+            Arguments = "-accel-check",
             RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            EnvironmentVariables = new Dictionary<string, string> {
-                { "ANDROID_HOME", sdkRoot.FullPath },
-                { "ANDROID_SDK_ROOT", sdkRoot.FullPath }
-            }
-        });
+            RedirectStandardError = true
+        },
+        out acceleration);
+    Information("Emulator acceleration: " +
+        string.Join(" ", (acceleration ?? Enumerable.Empty<string>()).Select(l => l.Trim())));
+
+    var emulatorLog = MakeAbsolute(File("./Artifacts/emulator.log"));
+    EnsureDirectoryExists(emulatorLog.GetDirectory());
+
+    Information($"Starting emulator '{avdName}' on {deviceId}, logging to {emulatorLog}");
+
+    // Launched through a shell redirecting to a file rather than with the output piped back
+    // here. The emulator writes steadily while it boots, and a pipe that nobody drains fills
+    // after about 64KB and blocks the writer -- which stalls the boot and looks exactly like a
+    // slow emulator. Sending it to a file also leaves something to read when a boot fails.
+    string command =
+        $"exec '{emulator}'" +
+        $" -avd '{avdName}'" +
+        $" -port {port}" +
+        " -no-window" +
+        " -no-audio" +
+        " -no-boot-anim" +
+        " -no-snapshot" +
+        " -wipe-data" +
+        " -gpu swiftshader_indirect" +
+        $" > '{emulatorLog.FullPath}' 2>&1";
+
+    StartAndReturnProcess("sh", new ProcessSettings {
+        Arguments = new ProcessArgumentBuilder().Append("-c").AppendQuoted(command),
+        EnvironmentVariables = new Dictionary<string, string> {
+            { "ANDROID_HOME", sdkRoot.FullPath },
+            { "ANDROID_SDK_ROOT", sdkRoot.FullPath }
+        }
+    });
 
     for (var waited = 0; waited < bootTimeoutSeconds; waited += 2) {
         if (IsAndroidDeviceBooted(deviceId)) {
@@ -342,7 +366,8 @@ public string StartAndroidEmulator(
     }
 
     throw new Exception(
-        $"Emulator '{avdName}' did not finish booting within {bootTimeoutSeconds}s.");
+        $"Emulator '{avdName}' did not finish booting within {bootTimeoutSeconds}s. " +
+        $"See {emulatorLog} for what it was doing.");
 }
 
 public void StopAndroidEmulator(string deviceId, string avdName) {
