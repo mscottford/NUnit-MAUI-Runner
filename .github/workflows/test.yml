@@ -117,10 +117,10 @@ jobs:
           arch: x86_64
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
           disable-animations: true
-          script: |
-            dotnet cake --target Test --configuration release \
-              --platform=android \
-              --android-device=emulator-5554
+          # One line on purpose. The action hands this to sh -c in a way that does not survive
+          # backslash continuations: split over lines, everything after the first is dropped and
+          # cake runs without the arguments that follow.
+          script: dotnet cake --target Test --configuration release --platform=android --android-device=emulator-5554
 
       - name: Upload test reports
         if: always()
