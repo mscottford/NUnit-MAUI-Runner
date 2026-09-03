@@ -16,9 +16,6 @@ on:
     branches: [main, master]
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 concurrency:
   group: release
   cancel-in-progress: false
@@ -33,6 +30,13 @@ jobs:
     # See ci.yml: this image is the one with an iOS 26.x SDK, which net10.0-ios26.0 needs.
     runs-on: macos-26
     if: github.repository == 'mscottford/NUnit-MAUI-Runner'
+
+    permissions:
+      # Pushing the release commit, the tag, and creating the GitHub release.
+      contents: write
+      # Trusted publishing: lets the job ask GitHub for the OIDC token that nuget.org
+      # exchanges for a short-lived API key.
+      id-token: write
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -74,29 +78,47 @@ jobs:
             --exit-insignificant-commits \
             --commit-suffix '[skip ci]'
 
-      - name: Stop if there is nothing to release
-        if: steps.versionize.outcome != 'success'
+      # Versionize failing is not necessarily a problem: it also fails when nothing since the
+      # last release was significant. Two cases are worth releasing, and they differ only in
+      # whether the tag still has to be pushed:
+      #
+      #   it cut a new version   -> tag exists locally, push it
+      #   HEAD is already tagged -> a previous run tagged and pushed but did not finish
+      #                             publishing, so pick that tag up and carry on
+      #
+      # Anything else means there is genuinely nothing to do. Publishing is idempotent, so
+      # re-running a release that already completed is harmless.
+      - name: Work out what to release
+        id: release
         run: |
-          echo "No feat, fix or breaking commits since the last release; nothing to publish."
+          if [ "${{ steps.versionize.outcome }}" = "success" ]; then
+            tag=$(git describe --tags --exact-match HEAD)
+            echo "Versionize cut $tag."
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+            echo "push=true" >> "$GITHUB_OUTPUT"
+          elif tag=$(git describe --tags --exact-match HEAD 2>/dev/null); then
+            echo "Nothing new to version, but HEAD is $tag; finishing that release."
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+            echo "push=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "No feat, fix or breaking commits since the last release, and HEAD is not"
+            echo "tagged. Nothing to publish."
+            echo "tag=" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Read the new version
-        if: steps.versionize.outcome == 'success'
-        id: version
-        run: echo "tag=$(git describe --tags --exact-match HEAD)" >> "$GITHUB_OUTPUT"
-
-      # Built before anything is pushed: versionize's commit and tag are still local, so a
-      # build or pack failure leaves the branch untouched and the run can simply be retried.
-      # The tag exists locally by this point, which is where the version comes from.
+      # Built before anything is pushed: a build or pack failure leaves the branch untouched
+      # and the run can simply be retried. The tag exists locally by this point, which is where
+      # the version comes from.
       - name: Build and pack
-        if: steps.versionize.outcome == 'success'
+        if: steps.release.outputs.tag != ''
         run: |
           dotnet cake --configuration release
           dotnet cake --target Pack --configuration release
 
       - name: Check the package carries the release version
-        if: steps.versionize.outcome == 'success'
+        if: steps.release.outputs.tag != ''
         env:
-          TAG: ${{ steps.version.outputs.tag }}
+          TAG: ${{ steps.release.outputs.tag }}
         run: |
           expected="Artifacts/MScottFord.Forks.NUnit.Maui.Runner.${TAG#v}.nupkg"
           if [ ! -f "$expected" ]; then
@@ -107,27 +129,36 @@ jobs:
           echo "Packaged $expected"
 
       - name: Push the release commit and tag
-        if: steps.versionize.outcome == 'success'
+        if: steps.release.outputs.push == 'true'
         run: git push --follow-tags origin HEAD:${{ github.ref_name }}
 
-      - name: Publish to NuGet
-        if: steps.versionize.outcome == 'success'
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-        run: |
-          if [ -z "$NUGET_API_KEY" ]; then
-            echo "NUGET_API_KEY is not configured." >&2
-            exit 1
-          fi
-          dotnet cake --target Nuget --configuration release --nuget-key "$NUGET_API_KEY"
+      # Exchanges the job's OIDC token for an API key that is valid for an hour, so it is
+      # requested immediately before the push rather than earlier in the job. There is no
+      # long-lived key to store: nuget.org matches the token against the trusted publishing
+      # policy registered for this repository and this workflow file.
+      - name: Log in to NuGet
+        if: steps.release.outputs.tag != ''
+        id: nuget-login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: mscottford
 
+      - name: Publish to NuGet
+        if: steps.release.outputs.tag != ''
+        run: |
+          dotnet cake --target Nuget --configuration release \
+            --nuget-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}"
+
+      # Skipped when the release already exists, which is the case when an earlier run got this
+      # far and then failed.
       - name: Create the GitHub release
-        if: steps.versionize.outcome == 'success'
+        if: steps.release.outputs.tag != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.version.outputs.tag }}
+          TAG: ${{ steps.release.outputs.tag }}
         run: |
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --generate-notes \
-            Artifacts/*.nupkg
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG already exists."
+          else
+            gh release create "$TAG" --title "$TAG" --generate-notes Artifacts/*.nupkg
+          fi

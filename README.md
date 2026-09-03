@@ -147,9 +147,12 @@ retried; the tag only appears once there is a package to go with it.
 A merge that contains nothing significant -- only `docs`, `chore` or `refactor` commits --
 produces no release: Versionize exits non-zero and the publishing steps are skipped.
 
-Releasing needs a `NUGET_API_KEY` repository secret. Both workflows run on macOS, because the
-package carries iOS assemblies and that image is also the one with the Android emulator
-preinstalled.
+Releasing needs no secrets. Publishing uses
+[trusted publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing): the
+release job asks GitHub for a short-lived OIDC token, and nuget.org exchanges it for an API key
+valid for an hour after matching it against a policy registered for this repository and the
+`release.yml` workflow. Nothing long-lived is stored, but the policy is tied to that file name,
+so renaming the workflow means updating the policy on nuget.org too.
 
 To pack locally without publishing:
 
