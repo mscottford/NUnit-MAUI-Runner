@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [versionize](https://github.com/versionize/versionize) for commit guidelines.
 
+<a name="2.0.1"></a>
+## [2.0.1](https://www.github.com/mscottford/NUnit-MAUI-Runner/releases/tag/v2.0.1) (2026-09-03)
+
+### Bug Fixes
+
+* **release:** publish via trusted publishing, and let a release be resumed ([#2](https://www.github.com/mscottford/NUnit-MAUI-Runner/issues/2)) ([7530f18](https://www.github.com/mscottford/NUnit-MAUI-Runner/commit/7530f18fb6f766baeadb76a10d287e3c94f62d4e))
+
 <a name="2.0.0"></a>
 ## [2.0.0](https://www.github.com/mscottford/NUnit-MAUI-Runner/releases/tag/v2.0.0) (2026-09-02)
 
