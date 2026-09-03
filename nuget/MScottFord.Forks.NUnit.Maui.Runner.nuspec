@@ -16,6 +16,12 @@ This is a fork of NUnit.Maui.Runner by Nikita Romanov (https://github.com/JaneyS
 Fork maintained at https://github.com/mscottford/NUnit-MAUI-Runner.</description>
     <tags>NUnit MAUI .NET fork</tags>
     <!--
+      Path inside the package, not on disk; the file itself is listed below. This is a
+      package-specific readme rather than the repository one, which is mostly about building
+      and testing the runner and would be noise on the package page.
+    -->
+    <readme>docs\README.md</readme>
+    <!--
       These must stay in step with the PackageReferences in
       src/NUnit.Maui.Runner/NUnit.Maui.Runner.csproj. Without them consumers of the package
       resolve NUnit.Maui.Runner.dll but none of the assemblies it references.
@@ -35,6 +41,8 @@ Fork maintained at https://github.com/mscottford/NUnit-MAUI-Runner.</description
     </dependencies>
   </metadata>
   <files>
+    <file src=".\README.md" target="docs\README.md"/>
+
     <file src=".\..\Build\Android\NUnit.Maui.Runner.dll" target="lib\net10.0-android36.0"/>
     <file src=".\..\Build\nunit.framework.dll" target="lib\net10.0-android36.0"/>
 
